@@ -1,9 +1,5 @@
 package trace
 
-import (
-	"time"
-)
-
 const (
 	CLIENT = 0
 	SERVER = 1
@@ -47,14 +43,14 @@ type Span struct {
 }
 
 type SpanRecord struct {
-	TraceID   string      `json:"traceId"`
-	SpanID    string      `json:"id"`
-	TraceName string      `json:"name"`
-	ParentID  string      `json:"parentId"`
-	Timestamp int64       `json:"timestamp"`
-	Duration  int64       `json:"duration"`
-	StageList []*Stage    `json:"annotations"`
-	Kvlist    []*KeyValue `json:"binary_annotations"`
+	TraceID   string      `json:"traceId"`            // 调用ID
+	SpanID    string      `json:"id"`                 // 当前spanID
+	TraceName string      `json:"name"`               // 跟踪名称
+	ParentID  string      `json:"parentId"`           // 父spanID
+	Timestamp int64       `json:"timestamp"`          // UNIX时间，单位毫秒
+	Duration  int64       `json:"duration"`           // 时间间隔，单位毫秒
+	StageList []*Stage    `json:"annotations"`        // 阶段信息，cs、cr、ss、sr
+	Kvlist    []*KeyValue `json:"binary_annotations"` // 用户自定义字段
 }
 
 func NewEndPoint(srvname, ip string, port int16) *Endpoint {
@@ -96,7 +92,7 @@ func (s *Span) GetContext() Context {
 func (s *Span) Begin(host *Endpoint) {
 	stage := new(Stage)
 	stage.Host = *host
-	stage.Timestamp = int64(time.Now().Nanosecond())
+	stage.Timestamp = gettimestamp()
 	if s.sptype == CLIENT {
 		stage.Value = "cs"
 	} else {
@@ -113,7 +109,7 @@ func (s *Span) AddKV(key, value string, host *Endpoint) {
 func (s *Span) End(host *Endpoint) {
 	stage := new(Stage)
 	stage.Host = *host
-	stage.Timestamp = int64(time.Now().Nanosecond())
+	stage.Timestamp = gettimestamp()
 	if s.sptype == CLIENT {
 		stage.Value = "cr"
 	} else {
