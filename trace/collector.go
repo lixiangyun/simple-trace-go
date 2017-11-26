@@ -86,7 +86,7 @@ func (c *Collector) send() error {
 		if err != nil {
 			log.Println("send failed!", err.Error())
 		} else {
-			c.recordfile.Write(buf)
+			c.recordfile.WriteString(string(buf) + "\r\n")
 		}
 	}
 
