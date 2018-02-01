@@ -15,8 +15,8 @@ const (
 	default_spanid_len  = 64
 )
 
-func gettimestamp() int64 {
-	return time.Now().UnixNano() / int64(time.Millisecond)
+func GetTimeStamp() int64 {
+	return time.Now().UnixNano() / int64(time.Microsecond)
 }
 
 func getuuid(length int) string {
@@ -28,10 +28,10 @@ func getuuid(length int) string {
 	return output
 }
 
-func getTraceID() string {
+func GetTraceID() string {
 	return getuuid(default_traceid_len)
 }
 
-func getSpanID() string {
+func GetSpanID() string {
 	return getuuid(default_spanid_len)
 }

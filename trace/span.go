@@ -1,131 +1,98 @@
 package trace
 
 const (
-	CLIENT = 0
-	SERVER = 1
+	CLIENT = "CLIENT"
+	SERVER = "SERVER"
 )
 
-var globalCollector *Collector
+type Span struct {
+	kind      string
+	name      string
+	ctx       Context
+	edp       Endpoint
+	tags      interface{}
+	timestamp int64
+	event     []Annotations
+}
 
-type SPAN_TYPE int
-
-type Context struct {
-	TraceID   string `json:"traceid"`
-	TraceName string `json:"name"`
-	SpanID    string `json:"id"`
-	ParentID  string `json:"parentid"`
+type Annotations struct {
+	Timestamp int64  `json:"timestamp"` // UNIX时间，单位毫秒
+	Value     string `json:"value"`     // 事件内容
 }
 
 type Endpoint struct {
-	SrvName string `json:"serviceName"`
-	IP      string `json:"ip"`
-	Port    int16  `json:"port"`
+	Name string `json:"serviceName"`
+	IPv4 string `json:"ipv4"`
+	Port int    `json:"port"`
 }
 
-//value : cs,cr,ss,sr
-type Stage struct {
-	Timestamp int64    `json:"timestamp"`
-	Value     string   `json:"value"`
-	Host      Endpoint `json:"endpoint"`
-}
-
-type KeyValue struct {
-	Key   string   `json:"key"`
-	Value string   `json:"value"`
-	Host  Endpoint `json:"endpoint"`
-}
-
-type Span struct {
-	sptype SPAN_TYPE
-	ctx    Context
-	step   []*Stage
-	kv     []*KeyValue
+type Tag struct {
+	Kv interface{}
 }
 
 type SpanRecord struct {
-	TraceID   string      `json:"traceId"`            // 调用ID
-	SpanID    string      `json:"id"`                 // 当前spanID
-	TraceName string      `json:"name"`               // 跟踪名称
-	ParentID  string      `json:"parentId"`           // 父spanID
-	Timestamp int64       `json:"timestamp"`          // UNIX时间，单位毫秒
-	Duration  int64       `json:"duration"`           // 时间间隔，单位毫秒
-	StageList []*Stage    `json:"annotations"`        // 阶段信息，cs、cr、ss、sr
-	Kvlist    []*KeyValue `json:"binary_annotations"` // 用户自定义字段
+	TraceID   string `json:"traceId"`   // 调用ID
+	SpanID    string `json:"id"`        // 当前spanID
+	ParentID  string `json:"parentId"`  // 父spanID
+	Name      string `json:"name"`      // 跟踪名称: http method: post/get...
+	Kind      string `json:"kind"`      // 类型: CLIENT/SERVER
+	Timestamp int64  `json:"timestamp"` // UNIX时间，单位毫秒
+	Duration  int64  `json:"duration"`  // 时间间隔，单位毫秒
+
+	LocalEndpoint interface{} `json:"localEndpoint"`
 }
 
-func NewEndPoint(srvname, ip string, port int16) *Endpoint {
-	return &Endpoint{IP: ip, Port: port, SrvName: srvname}
+func NewEndPoint(name, ip string, port int) Endpoint {
+	return Endpoint{Name: name, IPv4: ip, Port: port}
 }
 
-func RecvSpan(p Context) *Span {
-
-	s := &Span{sptype: SERVER}
-	s.ctx.TraceID = p.TraceID
-	s.ctx.ParentID = p.ParentID
-	s.ctx.TraceName = p.TraceName
-	s.ctx.SpanID = p.SpanID
-
-	s.step = make([]*Stage, 0)
-	s.kv = make([]*KeyValue, 0)
-
-	return s
-}
-
-func NewSpan(p Context) *Span {
-
-	s := &Span{sptype: CLIENT}
-	s.ctx.TraceID = p.TraceID
-	s.ctx.ParentID = p.SpanID
-	s.ctx.TraceName = p.TraceName
-	s.ctx.SpanID = getSpanID()
-
-	s.step = make([]*Stage, 0)
-	s.kv = make([]*KeyValue, 0)
-
-	return s
-}
-
-func (s *Span) GetContext() Context {
-	return s.ctx
-}
-
-func (s *Span) Begin(host *Endpoint) {
-	stage := new(Stage)
-	stage.Host = *host
-	stage.Timestamp = gettimestamp()
-	if s.sptype == CLIENT {
-		stage.Value = "cs"
-	} else {
-		stage.Value = "ss"
+func NewSpan(pctx *Context, kind, method string, edp Endpoint) *Span {
+	if kind != CLIENT && kind != SERVER {
+		return nil
 	}
-	s.step = append(s.step, stage)
-}
 
-func (s *Span) AddKV(key, value string, host *Endpoint) {
-	kv := &KeyValue{Key: key, Value: value, Host: *host}
-	s.kv = append(s.kv, kv)
-}
-
-func (s *Span) End(host *Endpoint) {
-	stage := new(Stage)
-	stage.Host = *host
-	stage.Timestamp = gettimestamp()
-	if s.sptype == CLIENT {
-		stage.Value = "cr"
-	} else {
-		stage.Value = "sr"
+	if pctx == nil || pctx.TraceID == "" {
+		return nil
 	}
-	s.step = append(s.step, stage)
+
+	return &Span{kind: kind, name: method, ctx: *pctx, edp: edp}
+}
+
+func (s *Span) Begin() {
+	s.timestamp = GetTimeStamp()
+}
+
+func (s *Span) Add(value string) {
+	if s.event == nil {
+		s.event = make([]Annotations, 0)
+	}
+	s.event = append(s.event, Annotations{Timestamp: GetTimeStamp(), Value: value})
+}
+
+func (s *Span) GetContext() *Context {
+	return &s.ctx
+}
+
+func (s *Span) Tags(kv interface{}) {
+	s.tags = kv
+}
+
+func (s *Span) End() {
+
+	timestamp := GetTimeStamp()
 
 	span := new(SpanRecord)
-	span.TraceName = s.ctx.TraceName
+
 	span.TraceID = s.ctx.TraceID
 	span.SpanID = s.ctx.SpanID
 	span.ParentID = s.ctx.ParentID
-	span.StageList = s.step
-	span.Kvlist = s.kv
-	span.Timestamp = s.step[0].Timestamp
-	span.Duration = s.step[1].Timestamp - s.step[0].Timestamp
 
-	globalCollector.Record(span)
+	span.Name = s.name
+	span.Kind = s.kind
+	span.Timestamp = s.timestamp
+	span.Duration = timestamp - s.timestamp
+
+	span.LocalEndpoint = s.edp
+
+	Collector(span)
 }

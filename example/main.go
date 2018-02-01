@@ -1,62 +1,75 @@
 package main
 
 import (
-	"log"
 	"time"
 
-	"github.com/lixiangyun/simple-trace-go/trace"
+	"github.com/lixiangyun/trace-go/trace"
 )
 
-func fun2(s *trace.Span, a, b int) {
+func fun2(ctx *trace.Context, a, b int) {
 	ep := trace.NewEndPoint("srv2", "192.168.0.2", 1002)
 
-	sp := trace.RecvSpan(s.GetContext())
+	sp := trace.NewSpan(ctx, trace.SERVER, "fun2", ep)
+	if sp != nil {
+		sp.Begin()
+	}
 
-	sp.Begin(ep)
+	time.Sleep(100 * time.Millisecond)
 
-	sp.AddKV("aaa", "bbb", ep)
-
-	sp.End(ep)
+	if sp != nil {
+		sp.End()
+	}
 
 }
 
-func fun1(s *trace.Span, a, b int) {
+func fun1(ctx *trace.Context, a, b int) {
 	ep := trace.NewEndPoint("srv1", "192.168.0.1", 1001)
 
-	sp := trace.NewSpan(s.GetContext())
+	sp := trace.NewSpan(ctx, trace.SERVER, "fun1", ep)
+	if sp != nil {
+		sp.Begin()
+	}
 
-	sp.Begin(ep)
+	time.Sleep(50 * time.Millisecond)
 
-	sp.AddKV("aa", "bb", ep)
+	ctx2 := trace.NewContext(ctx)
 
-	fun2(sp, a, b)
+	sp1 := trace.NewSpan(ctx2, trace.CLIENT, "fun2", ep)
+	if sp1 != nil {
+		sp1.Begin()
+	}
 
-	sp.End(ep)
+	fun2(ctx2, a, b)
+
+	if sp1 != nil {
+		sp1.End()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	if sp != nil {
+		sp.End()
+	}
 }
 
 func main() {
 
+	trace.ZipKinEndpointSet("128.5.64.90:9411")
+
 	ep := trace.NewEndPoint("cli", "192.168.0.1", 1001)
 
-	collector := trace.NewCollector()
-	if collector == nil {
-		log.Println("new trace collector failed!")
-		return
+	ctx := trace.NewContext(nil)
+
+	sp := trace.NewSpan(ctx, trace.CLIENT, "fun1", ep)
+	if sp != nil {
+		sp.Begin()
 	}
 
-	trace.SetCollector(collector)
+	fun1(ctx, 1, 2)
 
-	sp := trace.Start("test1")
+	if sp != nil {
+		sp.End()
+	}
 
-	sp.Begin(ep)
-
-	fun1(sp, 1, 2)
-
-	sp.End(ep)
-
-	time.Sleep(time.Second * 2)
-
-	collector.Stop()
-
-	return
+	time.Sleep(time.Second * 1)
 }
