@@ -54,7 +54,7 @@ func fun1(ctx *trace.Context, a, b int) {
 
 func main() {
 
-	trace.ZipKinEndpointSet("128.5.64.90:9411")
+	trace.ZipKinEndpointSet("127.0.0.1:9411")
 
 	ep := trace.NewEndPoint("cli", "192.168.0.1", 1001)
 

@@ -14,7 +14,7 @@ type ZipKin struct {
 	api      string // default /api/v2/spans
 }
 
-var gzipkin = ZipKin{endpoint: "http://localhost:9411", api: "/api/v2/spans"}
+var gzipkin = ZipKin{endpoint: "http://127.0.0.1:9411", api: "/api/v2/spans"}
 
 func ZipKinEndpointSet(endpoint string) {
 	gzipkin.endpoint = "http://" + endpoint

@@ -1,13 +1,15 @@
 package trace
 
-import (
-	"log"
-)
-
 const (
 	CLIENT = "CLIENT"
 	SERVER = "SERVER"
 )
+
+type Context struct {
+	TraceID  string `json:"x-trace-id"`
+	SpanID   string `json:"x-span-id"`
+	ParentID string `json:"x-parent-id"`
+}
 
 type Span struct {
 	kind      string
@@ -54,11 +56,9 @@ func NewSpan(pctx *Context, kind, method string, edp Endpoint) *Span {
 	if kind != CLIENT && kind != SERVER {
 		return nil
 	}
-
 	if pctx == nil || pctx.TraceID == "" {
 		return nil
 	}
-
 	return &Span{kind: kind, name: method, ctx: *pctx, edp: edp}
 }
 
@@ -101,49 +101,15 @@ func (s *Span) End() {
 	Collector(span)
 }
 
-const defaultBatchSize = 100 // the counts of span record
-
-var spanRecordChan chan *SpanRecord
-
-func init() {
-	spanRecordChan = make(chan *SpanRecord, defaultBatchSize)
-	go collectorLoop()
-}
-
-func collectorLoop() {
-
-	for {
-		span := <-spanRecordChan
-		count := len(spanRecordChan) + 1
-
-		buffer := make([]*SpanRecord, count)
-		buffer[0] = span
-
-		for i := 1; i < count; i++ {
-			buffer[i] = <-spanRecordChan
-		}
-
-		err := PostSpan(buffer)
-		if err != nil {
-			log.Println(err.Error())
-		}
-	}
-}
-
-func Collector(s *SpanRecord) {
-	spanRecordChan <- s
-}
-
-type Context struct {
-	TraceID  string `json:"x-trace-id"`
-	SpanID   string `json:"x-span-id"`
-	ParentID string `json:"x-parent-id"`
-}
-
 func NewContext(pctx *Context) *Context {
 	if pctx != nil {
-		return &Context{TraceID: pctx.TraceID, ParentID: pctx.SpanID, SpanID: GetSpanID()}
+		return &Context{
+			TraceID:  pctx.TraceID,
+			ParentID: pctx.SpanID,
+			SpanID:   GetSpanID()}
 	} else {
-		return &Context{TraceID: GetTraceID(), SpanID: GetSpanID()}
+		return &Context{
+			TraceID: GetTraceID(),
+			SpanID:  GetSpanID()}
 	}
 }
